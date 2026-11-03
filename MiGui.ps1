@@ -289,8 +289,8 @@ $btnInstalar.Add_Click({
             $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
 
             $localFolder = "C:\SAP"
-            $singleExe   = "$localFolder\PopsyPackage_20261103_1431.exe"
-            $githubUrl   = "https://github.com/Sebask360/PROYECTOS/releases/download/v1.0.1/PopsyPackage_20261103_1431.exe"
+            $singleExe   = "$localFolder\SAP_PopsyPackage.exe"
+            $githubUrl   = "https://github.com/Sebask360/PROYECTOS/releases/download/v1.0.0/SAP_PopsyPackage.exe"
 
             if (-not (Test-Path $localFolder)) {
                 New-Item -ItemType Directory -Path $localFolder -Force | Out-Null
