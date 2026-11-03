@@ -153,12 +153,13 @@ function Install-App {
         [string]$exeRuta = ""
     )
     $txtEstado.Text = "Instalando $nombre..."
-    [System.Windows.Forms.Application]::DoEvents()
+    # Forzar la actualización visual de la ventana WPF
+    $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
     
     # Instalación silenciosa vía WinGet
     winget install --id $id --silent --accept-package-agreements --accept-source-agreements | Out-Null
     
-    # Lanzar la aplicación si la casilla está activa y se proporcionó la ruta del ejecutable
+    # Lanzar la aplicación si la casilla está activa y existe el archivo
     if ($chkLanzarAlFinal.IsChecked -and $exeRuta -ne "") {
         if (Test-Path $exeRuta) {
             Start-Process -FilePath $exeRuta
