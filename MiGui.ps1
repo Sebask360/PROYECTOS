@@ -76,8 +76,7 @@ $xmlServices
     [System.IO.File]::WriteAllText($xmlPath, $landscapeContent, [System.Text.Encoding]::UTF8)
 }
 
-# Función para crear usuario local y asignarle grupo Administradores
-# Función para crear usuario local y asignarle grupo Administradores (Corregida)
+# Función para crear/actualizar usuario local y asignarle grupo Administradores (Blindada)
 function New-PopsyUser {
     param (
         [string]$Username,
@@ -86,22 +85,28 @@ function New-PopsyUser {
     
     $securePass = ConvertTo-SecureString $Password -AsPlainText -Force
 
-    # Verificar si el usuario ya existe en Windows
+    # 1. Verificar si el usuario ya existe en Windows
     $userExists = Get-LocalUser -Name $Username -ErrorAction SilentlyContinue
 
     if (-not $userExists) {
-        # New-LocalUser sí acepta $true como booleano explícito
-        New-LocalUser -Name $Username -Password $securePass -FullName "Usuario $Username" -PasswordNeverExpires:$true | Out-Null
+        # Crear usuario nuevo
+        New-LocalUser -Name $Username -Password $securePass -FullName "Usuario $Username" -PasswordNeverExpires:$true -ErrorAction Stop | Out-Null
     } else {
-        # Set-LocalUser requiere la sintaxis con ':' para parámetros Switch booleans
-        Set-LocalUser -Name $Username -Password $securePass -PasswordNeverExpires:$true | Out-Null
+        # Actualizar contraseña de usuario existente
+        Set-LocalUser -Name $Username -Password $securePass -PasswordNeverExpires:$true -ErrorAction Stop | Out-Null
     }
 
-    # Habilitar cuenta si estuviera deshabilitada
+    # 2. Habilitar cuenta (por si estaba deshabilitada)
     Enable-LocalUser -Name $Username -ErrorAction SilentlyContinue
 
-    # Asignar Privilegios de Administrador
-    Add-LocalGroupMember -Group "Administradores" -Member $Username -ErrorAction SilentlyContinue
+    # 3. Detectar nombre del grupo de Administradores (Español vs Inglés)
+    $adminGroup = "Administradores"
+    if (-not (Get-LocalGroup -Name $adminGroup -ErrorAction SilentlyContinue)) {
+        $adminGroup = "Administrators"
+    }
+
+    # 4. Asignar al grupo de Administradores
+    Add-LocalGroupMember -Group $adminGroup -Member $Username -ErrorAction SilentlyContinue
 }
 
 # ==============================================================================
