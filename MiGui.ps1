@@ -1,9 +1,56 @@
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms
 
+# ==============================================================================
+# 1. FUNCIONES AUXILIARES
+# ==============================================================================
+
+# Función para inyectar el XML corporativo de SAP directamente
+function Set-SAPLandscapePopsy {
+    $landscapeDir = "$env:APPDATA\SAP\Common"
+    $xmlPath      = "$landscapeDir\SAPUILandscape.xml"
+
+    # Crear carpeta destino si no existe
+    if (-not (Test-Path $landscapeDir)) {
+        New-Item -ItemType Directory -Path $landscapeDir -Force | Out-Null
+    }
+
+    # Generar la estructura exacta corporativa de POPSY
+    $landscapeContent = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<Landscape updated="$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))" version="1" generator="SAP GUI for Windows v8000.1.15.155">
+  <Workspaces>
+    <Workspace uuid="9a7bc45a-12fe-4bf6-bb32-29e67c6479e3" name="Local">
+      <Item uuid="8a362934-12df-404c-bbcb-3bd12f711e42" serviceid="a7ae92ec-e4bd-4e44-acf1-7d778e091c39"/>
+      <Item uuid="8e3e4589-37fb-4578-af44-f166e36fb58a" serviceid="91d83f3d-df2b-4717-a025-a1ad35a9b668"/>
+      <Item uuid="856ffcc8-413b-4466-82c6-e42186bbc00a" serviceid="bb08a6cd-1897-46f4-9b05-664c073366a5"/>
+    </Workspace>
+  </Workspaces>
+  <Routers>
+    <Router uuid="0b893123-f1ba-4cef-902d-6b3537829aef" name="/H/200.91.193.73" description="/H/200.91.193.73" router="/H/200.91.193.73"/>
+    <Router uuid="8aeed703-b3da-460c-83ba-fb5cd1ed35e3" name="/H/200.91.193.73|" description="/H/200.91.193.73|" router="/H/200.91.193.73|"/>
+  </Routers>
+  <Services>
+    <Service type="SAPGUI" uuid="a7ae92ec-e4bd-4e44-acf1-7d778e091c39" name="POPSY PRD" systemid="P4P" mode="1" server="10.0.0.5:3200" routerid="0b893123-f1ba-4cef-902d-6b3537829aef" sncop="-1" dcpg="2"/>
+    <Service type="SAPGUI" uuid="91d83f3d-df2b-4717-a025-a1ad35a9b668" name="POPSY QA" systemid="P4Q" mode="1" server="10.0.0.3:3202" routerid="8aeed703-b3da-460c-83ba-fb5cd1ed35e3" sncop="-1" dcpg="2"/>
+    <Service type="SAPGUI" uuid="bb08a6cd-1897-46f4-9b05-664c073366a5" name="POPSY DESARROLLO" systemid="P4D" mode="1" server="10.0.0.3:3200" routerid="0b893123-f1ba-4cef-902d-6b3537829aef" sncop="-1" dcpg="2"/>
+  </Services>
+  <Includes>
+    <Include url="file:///$env:APPDATA/SAP/Common/SAPUILandscapeGlobal.xml" index="0" description="SAP Reserved"/>
+  </Includes>
+</Landscape>
+"@
+
+    # Guardar archivo con codificación UTF-8
+    [System.IO.File]::WriteAllText($xmlPath, $landscapeContent, [System.Text.Encoding]::UTF8)
+}
+
+# ==============================================================================
+# 2. DEFINICIÓN DE INTERFAZ (XAML)
+# ==============================================================================
 [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="WinUtil - Suite de Instalación" Height="540" Width="800"
+        Title="WinUtil - Suite de Instalación sistemas Popsy" Height="540" Width="800"
         WindowStartupLocation="CenterScreen" Background="#1F232A">
     
     <Window.Resources>
@@ -62,6 +109,7 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, Sys
     <Grid Margin="10">
         <TabControl Background="Transparent" BorderThickness="0">
             
+            <!-- PESTAÑA 1: INSTALACIONES -->
             <TabItem Header="Instalaciones">
                 <Grid Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
@@ -69,20 +117,16 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, Sys
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Panel Izquierdo: Acciones -->
                     <Border Grid.Column="0" Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="12" Margin="0,0,10,0">
                         <StackPanel>
                             <TextBlock Text="Acciones" Foreground="#41C4E2" FontWeight="Bold" FontSize="14" Margin="0,0,0,10"/>
                             <Button Name="BtnInstalar" Content="Instalar Seleccionados" Height="35" Margin="0,0,0,10"/>
-                            
                             <CheckBox Name="chkLanzarAlFinal" Content="Abrir al finalizar" Foreground="#C5C8C6" IsChecked="True" Margin="0,5,0,15"/>
-
                             <TextBlock Text="Estado:" Foreground="#A0A5B1" FontSize="12" Margin="0,5,0,5"/>
                             <TextBlock Name="TxtEstado" Text="Esperando selección..." Foreground="#41C4E2" FontSize="11" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Panel Derecho: Lista de Apps -->
                     <Border Grid.Column="1" Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
@@ -92,7 +136,7 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, Sys
                                         <CheckBox Name="chkLogMeIn" Content="LogMeIn Client" Foreground="White"/>
                                     </Border>
                                     <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
-                                        <CheckBox Name="chkSAP" Content="SAP Logon 64" Foreground="White"/>
+                                        <CheckBox Name="chkSAP" Content="SAP Logon 64 (Instalador)" Foreground="White"/>
                                     </Border>
                                     <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
                                         <CheckBox Name="chkChrome" Content="Google Chrome" Foreground="White"/>
@@ -116,9 +160,19 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, Sys
                 </Grid>
             </TabItem>
 
+            <!-- PESTAÑA 2: CONFIGURACIONES (Actualizada para SAP) -->
             <TabItem Header="Configuraciones">
-                <TextBlock Text="Opciones de configuración" Foreground="White" Margin="20"/>
+                <Grid Margin="0,10,0,0">
+                    <Border Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
+                        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top">
+                            <TextBlock Text="Configuración de Entornos SAP" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
+                            <TextBlock Text="Añade automáticamente los ambientes PRD, QA y DESARROLLO al archivo SAPUILandscape.xml del usuario actual sin necesidad de descargas externas." Foreground="#A0A5B1" TextWrapping="Wrap" Margin="0,0,0,15"/>
+                            <Button Name="BtnConfigurarSAP" Content="Aplicar Configuraciones SAP" Width="220" HorizontalAlignment="Left" Height="35"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </TabItem>
+            
             <TabItem Header="Notas">
                 <TextBlock Text="Bloc de Notas" Foreground="White" Margin="20"/>
             </TabItem>
@@ -134,6 +188,7 @@ $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
 # Mapear Controles
 $btnInstalar     = $window.FindName("BtnInstalar")
+$btnConfigurarSAP= $window.FindName("BtnConfigurarSAP")
 $txtEstado       = $window.FindName("TxtEstado")
 $chkLanzarAlFinal= $window.FindName("chkLanzarAlFinal")
 
@@ -147,85 +202,71 @@ $chkStopUpdates  = $window.FindName("chkStopUpdates")
 
 # Función auxiliar de instalación mediante WinGet con opción de apertura
 function Install-App {
-    param (
-        [string]$id, 
-        [string]$nombre, 
-        [string]$exeRuta = ""
-    )
+    param ([string]$id, [string]$nombre, [string]$exeRuta = "")
     $txtEstado.Text = "Instalando $nombre..."
-    # Forzar la actualización visual de la ventana WPF
     $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
     
-    # Instalación silenciosa vía WinGet
     winget install --id $id --silent --accept-package-agreements --accept-source-agreements | Out-Null
     
-    # Lanzar la aplicación si la casilla está activa y existe el archivo
     if ($chkLanzarAlFinal.IsChecked -and $exeRuta -ne "") {
-        if (Test-Path $exeRuta) {
-            Start-Process -FilePath $exeRuta
-        }
+        if (Test-Path $exeRuta) { Start-Process -FilePath $exeRuta }
     }
 }
 
-# Lógica del botón de Instalación
-# Lógica del botón de Instalación corregida
+# ==============================================================================
+# 3. LÓGICA DE EVENTOS (BOTONES)
+# ==============================================================================
+
+# Lógica del botón de Instalación Principal
 $btnInstalar.Add_Click({
     $btnInstalar.IsEnabled = $false
 
     try {
-        if ($chkChrome.IsChecked) { 
-            Install-App "Google.Chrome" "Google Chrome" "C:\Program Files\Google\Chrome\Application\chrome.exe" 
-        }
-        if ($chkDrive.IsChecked) { 
-            Install-App "Google.Drive" "Google Drive" "C:\Program Files\Google\Drive File Stream\launch.exe" 
-        }
-        if ($chkAdobe.IsChecked) { 
-            Install-App "Adobe.Acrobat.Reader.64-bit" "Adobe Reader" "C:\Program Files\Adobe\Acrobat DC\Acrobat\Acrobat.exe" 
-        }
-        if ($chkSonicWall.IsChecked) { 
-            Install-App "SonicWall.GlobalVPNClient" "SonicWall Global VPN Client" "C:\Program Files\SonicWall\Global VPN Client\SWGVC.exe" 
-        }
-        if ($chkLogMeIn.IsChecked) { 
-            Install-App "LogMeIn.LogMeInClient" "LogMeIn Client" "C:\Program Files (x86)\LogMeIn\x64\LogMeInSystray.exe" 
-        }
+        if ($chkChrome.IsChecked) { Install-App "Google.Chrome" "Google Chrome" "C:\Program Files\Google\Chrome\Application\chrome.exe" }
+        if ($chkDrive.IsChecked)  { Install-App "Google.Drive" "Google Drive" "C:\Program Files\Google\Drive File Stream\launch.exe" }
+        if ($chkAdobe.IsChecked)  { Install-App "Adobe.Acrobat.Reader.64-bit" "Adobe Reader" "C:\Program Files\Adobe\Acrobat DC\Acrobat\Acrobat.exe" }
+        if ($chkSonicWall.IsChecked){ Install-App "SonicWall.GlobalVPNClient" "SonicWall Global VPN Client" "C:\Program Files\SonicWall\Global VPN Client\SWGVC.exe" }
+        if ($chkLogMeIn.IsChecked){ Install-App "LogMeIn.LogMeInClient" "LogMeIn Client" "C:\Program Files (x86)\LogMeIn\x64\LogMeInSystray.exe" }
 
-        # 1. CORRECCIÓN: StopUpdates10 con ID correcto y argumento --force
+        # StopUpdates10
         if ($chkStopUpdates.IsChecked) { 
             $txtEstado.Text = "Instalando StopUpdates10..."
             $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
-            
-            # Se usa el ID exacto 'Greatis.StopUpdates10' y se añade --force para manejar paquetes ZIP
             winget install --id Greatis.StopUpdates10 --silent --force --accept-package-agreements --accept-source-agreements | Out-Null
-            
             $exeStop = "C:\Program Files (x86)\StopUpdates10\StopUpdates10.exe"
-            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $exeStop)) {
-                Start-Process -FilePath $exeStop
-            }
+            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $exeStop)) { Start-Process -FilePath $exeStop }
         }
 
-        # 2. CORRECCIÓN: SAP Logon 64 descarga directa oficial
+        # INSTALACIÓN SAP DESDE GITHUB RELEASES (Solo Instalación)
         if ($chkSAP.IsChecked) {
-            $txtEstado.Text = "Descargando SAP Logon 64..."
+            $txtEstado.Text = "Comprobando instalador de SAP..."
             $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
-            
-            $tempPath = "$env:TEMP\SetupGUI.exe"
-            
-            # IMPORTANTE: Coloca aquí el enlace directo al ejecutable de tu empresa (Servidor local, OneDrive o GitHub Release)
-            # Ejemplo: $sapUrl = "\\ServidorEmpresa\Compartido\SAP\SetupGUI.exe" si es una red local
-            $sapUrl = "https://URL-DIRECTA-A-TU-INSTALADOR-SAP/SetupGUI.exe" 
 
-            if ($sapUrl -like "http*") {
-                Invoke-WebRequest -Uri $sapUrl -OutFile $tempPath
-                $txtEstado.Text = "Instalando SAP Logon 64..."
-                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
-                Start-Process -FilePath $tempPath -ArgumentList "/silent" -Wait
-                Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
-            } else {
-                # Si está en una carpeta de red local (ejemplo: \\servidor\compartido\SetupGUI.exe)
-                Start-Process -FilePath $sapUrl -ArgumentList "/silent" -Wait
+            $localFolder = "C:\SAP"
+            $singleExe   = "$localFolder\SAP_PopsyPackage.exe"
+            $githubUrl   = "https://github.com/Sebask360/PROYECTOS/releases/download/v1.0.0/SAP_PopsyPackage.exe"
+
+            if (-not (Test-Path $localFolder)) {
+                New-Item -ItemType Directory -Path $localFolder -Force | Out-Null
             }
 
-            # Abrir SAP Logon si la casilla está marcada
+            if (-not (Test-Path $singleExe)) {
+                $txtEstado.Text = "Descargando SAP Logon 64 desde GitHub..."
+                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+                try {
+                    Invoke-WebRequest -Uri $githubUrl -OutFile $singleExe -UseBasicParsing
+                } catch {
+                    [System.Windows.MessageBox]::Show("Error al descargar el ejecutable de SAP.", "Error Descarga")
+                }
+            }
+
+            if (Test-Path $singleExe) {
+                $txtEstado.Text = "Instalando SAP Logon 64 en segundo plano..."
+                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+                Start-Process -FilePath $singleExe -ArgumentList "/Silent" -Wait
+            }
+
+            # Abrir SAP Logon al finalizar si la casilla está marcada
             $sapExe = "C:\Program Files\SAP\FrontEnd\SAPgui\saplogon.exe"
             if ($chkLanzarAlFinal.IsChecked -and (Test-Path $sapExe)) {
                 Start-Process -FilePath $sapExe
@@ -241,6 +282,16 @@ $btnInstalar.Add_Click({
     }
     finally {
         $btnInstalar.IsEnabled = $true
+    }
+})
+
+# Lógica del botón de Configuración SAP (Pestaña Configuraciones)
+$btnConfigurarSAP.Add_Click({
+    try {
+        Set-SAPLandscapePopsy
+        [System.Windows.MessageBox]::Show("Ambientes POPSY PRD, POPSY QA y POPSY DESARROLLO añadidos exitosamente al archivo de configuraciones del usuario.", "Configuración Aplicada")
+    } catch {
+        [System.Windows.MessageBox]::Show("Ocurrió un error al aplicar la configuración XML: $_", "Error XML")
     }
 })
 
