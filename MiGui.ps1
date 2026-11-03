@@ -1,8 +1,16 @@
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms
 
 # ==============================================================================
-# 1. FUNCIONES AUXILIARES
+# 1. FUNCIONES AUXILIARES Y LÓGICA DE NEGOCIO
 # ==============================================================================
+
+# Función para forzar el refresco de eventos de la GUI WPF sin congelar la ventana
+function Update-UI {
+    [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke(
+        [System.Action]{}, 
+        [System.Windows.Threading.DispatcherPriority]::Background
+    )
+}
 
 # Función dinámica para inyectar el XML corporativo de SAP según selección
 function Set-SAPLandscapePopsy {
@@ -15,12 +23,10 @@ function Set-SAPLandscapePopsy {
     $landscapeDir = "$env:APPDATA\SAP\Common"
     $xmlPath      = "$landscapeDir\SAPUILandscape.xml"
 
-    # Crear carpeta destino si no existe
     if (-not (Test-Path $landscapeDir)) {
         New-Item -ItemType Directory -Path $landscapeDir -Force | Out-Null
     }
 
-    # Inicializar bloques de construcción del XML
     $xmlItems    = ""
     $xmlServices = ""
     $xmlRouters  = ""
@@ -28,7 +34,6 @@ function Set-SAPLandscapePopsy {
     $needRouter1 = $false
     $needRouter2 = $false
 
-    # Construir Nodos dinámicamente
     if ($IncludePRD) {
         $xmlItems    += "      <Item uuid=`"8a362934-12df-404c-bbcb-3bd12f711e42`" serviceid=`"a7ae92ec-e4bd-4e44-acf1-7d778e091c39`"/>`n"
         $xmlServices += "    <Service type=`"SAPGUI`" uuid=`"a7ae92ec-e4bd-4e44-acf1-7d778e091c39`" name=`"POPSY PRD`" systemid=`"P4P`" mode=`"1`" server=`"10.0.0.5:3200`" routerid=`"0b893123-f1ba-4cef-902d-6b3537829aef`" sncop=`"-1`" dcpg=`"2`"/>`n"
@@ -45,7 +50,6 @@ function Set-SAPLandscapePopsy {
         $needRouter1 = $true
     }
 
-    # Añadir routers solo si los ambientes seleccionados los requieren
     if ($needRouter1) { 
         $xmlRouters += "    <Router uuid=`"0b893123-f1ba-4cef-902d-6b3537829aef`" name=`"/H/200.91.193.73`" description=`"/H/200.91.193.73`" router=`"/H/200.91.193.73`"/>`n" 
     }
@@ -53,12 +57,10 @@ function Set-SAPLandscapePopsy {
         $xmlRouters += "    <Router uuid=`"8aeed703-b3da-460c-83ba-fb5cd1ed35e3`" name=`"/H/200.91.193.73|`" description=`"/H/200.91.193.73|`" router=`"/H/200.91.193.73|`"/>`n" 
     }
 
-    # Limpiar el último salto de línea
     $xmlItems    = $xmlItems.TrimEnd("`n")
     $xmlRouters  = $xmlRouters.TrimEnd("`n")
     $xmlServices = $xmlServices.TrimEnd("`n")
 
-    # Ensamblar el XML Final
     $landscapeContent = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <Landscape updated="$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))" version="1" generator="SAP GUI for Windows v8000.1.15.155">
@@ -81,6 +83,12 @@ $xmlServices
 
     # Guardar archivo con codificación UTF-8 sin BOM
     [System.IO.File]::WriteAllText($xmlPath, $landscapeContent, [System.Text.Encoding]::UTF8)
+
+    # Depuración de la clave de registro de SAP Logon para evitar advertencias de servidor central
+    $regPath = "HKCU:\Software\SAP\SAPLogon\Options"
+    if (Test-Path $regPath) {
+        Remove-ItemProperty -Path $regPath -Name "SapGui64.LandscapeFileOnServer" -ErrorAction SilentlyContinue
+    }
 }
 
 # ==============================================================================
@@ -167,7 +175,7 @@ $xmlServices
                     <Border Grid.Column="1" Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <TextBlock Text="- Software Seleccionado" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
+                                <TextBlock Text="Software Seleccionado" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
                                 <WrapPanel>
                                     <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
                                         <CheckBox Name="chkLogMeIn" Content="LogMeIn Client" Foreground="White"/>
@@ -197,7 +205,7 @@ $xmlServices
                 </Grid>
             </TabItem>
 
-            <!-- PESTAÑA 2: CONFIGURACIONES (Selección de Ambientes) -->
+            <!-- PESTAÑA 2: CONFIGURACIONES -->
             <TabItem Header="Configuraciones">
                 <Grid Margin="0,10,0,0">
                     <Border Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
@@ -216,7 +224,7 @@ $xmlServices
             </TabItem>
             
             <TabItem Header="Notas">
-                <TextBlock Text="Bloc de Notas" Foreground="White" Margin="20"/>
+                <TextBlock Text="Notas operativas de despliegue." Foreground="White" Margin="20"/>
             </TabItem>
 
         </TabControl>
@@ -247,16 +255,26 @@ $chkSapPrd       = $window.FindName("chkSapPrd")
 $chkSapQa        = $window.FindName("chkSapQa")
 $chkSapDev       = $window.FindName("chkSapDev")
 
-# Función auxiliar de instalación mediante WinGet con opción de apertura
+# Función auxiliar de instalación mediante WinGet
 function Install-App {
-    param ([string]$id, [string]$nombre, [string]$exeRuta = "")
+    param (
+        [string]$id, 
+        [string]$nombre, 
+        [string]$exeRuta = "",
+        [string]$overrideArgs = ""
+    )
     $txtEstado.Text = "Instalando $nombre..."
-    $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+    Update-UI
     
-    winget install --id $id --silent --accept-package-agreements --accept-source-agreements | Out-Null
+    $argsList = "install --id $id --silent --accept-package-agreements --accept-source-agreements"
+    if ($overrideArgs -ne "") {
+        $argsList += " --override `"$overrideArgs`""
+    }
+
+    Start-Process winget -ArgumentList $argsList -Wait -NoNewWindow
     
-    if ($chkLanzarAlFinal.IsChecked -and $exeRuta -ne "") {
-        if (Test-Path $exeRuta) { Start-Process -FilePath $exeRuta }
+    if ($chkLanzarAlFinal.IsChecked -and $exeRuta -ne "" -and (Test-Path $exeRuta)) {
+        Start-Process -FilePath $exeRuta
     }
 }
 
@@ -276,17 +294,13 @@ $btnInstalar.Add_Click({
         if ($chkLogMeIn.IsChecked){ Install-App "LogMeIn.LogMeInClient" "LogMeIn Client" "C:\Program Files (x86)\LogMeIn\x64\LogMeInSystray.exe" }
 
         if ($chkStopUpdates.IsChecked) { 
-            $txtEstado.Text = "Instalando StopUpdates10..."
-            $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
-            winget install --id Greatis.StopUpdates10 --silent --force --accept-package-agreements --accept-source-agreements | Out-Null
-            $exeStop = "C:\Program Files (x86)\StopUpdates10\StopUpdates10.exe"
-            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $exeStop)) { Start-Process -FilePath $exeStop }
+            Install-App "Greatis.StopUpdates10" "StopUpdates10" "C:\Program Files (x86)\StopUpdates10\StopUpdates10.exe" "--force"
         }
 
         # INSTALACIÓN SAP
         if ($chkSAP.IsChecked) {
             $txtEstado.Text = "Comprobando instalador de SAP..."
-            $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+            Update-UI
 
             $localFolder = "C:\SAP"
             $singleExe   = "$localFolder\SAP_PopsyPackage.exe"
@@ -297,26 +311,23 @@ $btnInstalar.Add_Click({
             }
             if (-not (Test-Path $singleExe)) {
                 $txtEstado.Text = "Descargando SAP Logon 64 desde GitHub..."
-                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+                Update-UI
     
                 try {
-                    # 1. Ocultar la barra de progreso de PowerShell para acelerar la descarga
                     $oldProgressPreference = $ProgressPreference
                     $ProgressPreference = 'SilentlyContinue'
 
-                    # 2. Descargar el ejecutable
                     Invoke-WebRequest -Uri $githubUrl -OutFile $singleExe -UseBasicParsing
 
-                    # 3. Restaurar la preferencia de progreso
                     $ProgressPreference = $oldProgressPreference
                 } catch {
-                    [System.Windows.MessageBox]::Show("Error al descargar el ejecutable de SAP.", "Error Descarga")
+                    [System.Windows.MessageBox]::Show("Error al descargar el ejecutable de SAP: $_", "Error Descarga")
                 }
             }
             
             if (Test-Path $singleExe) {
                 $txtEstado.Text = "Instalando SAP Logon 64 en segundo plano..."
-                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+                Update-UI
                 Start-Process -FilePath $singleExe -ArgumentList "/Silent" -Wait
             }
 
@@ -341,13 +352,11 @@ $btnInstalar.Add_Click({
 # Lógica del botón de Configuración SAP Dinámica
 $btnConfigurarSAP.Add_Click({
     try {
-        # Validar que al menos uno esté seleccionado
         if (-not ($chkSapPrd.IsChecked -or $chkSapQa.IsChecked -or $chkSapDev.IsChecked)) {
             [System.Windows.MessageBox]::Show("Debes seleccionar al menos un ambiente para configurar.", "Aviso")
             return
         }
 
-        # Ejecutar función pasando los valores de los CheckBox
         Set-SAPLandscapePopsy -IncludePRD $chkSapPrd.IsChecked -IncludeQA $chkSapQa.IsChecked -IncludeDEV $chkSapDev.IsChecked
         
         [System.Windows.MessageBox]::Show("El archivo de configuración SAPUILandscape.xml se ha actualizado exitosamente con los ambientes seleccionados.", "Configuración Aplicada")
