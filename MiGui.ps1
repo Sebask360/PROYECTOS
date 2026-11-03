@@ -3,7 +3,7 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="WinUtil - Suite de Instalación" Height="520" Width="800"
+        Title="WinUtil - Suite de Instalación" Height="540" Width="800"
         WindowStartupLocation="CenterScreen" Background="#1F232A">
     
     <Window.Resources>
@@ -74,7 +74,10 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
                         <StackPanel>
                             <TextBlock Text="Acciones" Foreground="#41C4E2" FontWeight="Bold" FontSize="14" Margin="0,0,0,10"/>
                             <Button Name="BtnInstalar" Content="Instalar Seleccionados" Height="35" Margin="0,0,0,10"/>
-                            <TextBlock Text="Estado:" Foreground="#A0A5B1" FontSize="12" Margin="0,10,0,5"/>
+                            
+                            <CheckBox Name="chkLanzarAlFinal" Content="Abrir al finalizar" Foreground="#C5C8C6" IsChecked="True" Margin="0,5,0,15"/>
+
+                            <TextBlock Text="Estado:" Foreground="#A0A5B1" FontSize="12" Margin="0,5,0,5"/>
                             <TextBlock Name="TxtEstado" Text="Esperando selección..." Foreground="#41C4E2" FontSize="11" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
@@ -98,7 +101,7 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
                                         <CheckBox Name="chkDrive" Content="Google Drive" Foreground="White"/>
                                     </Border>
                                     <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
-                                        <CheckBox Name="chkSonicWall" Content="SonicWall NetExtender" Foreground="White"/>
+                                        <CheckBox Name="chkSonicWall" Content="SonicWall Global VPN Client" Foreground="White"/>
                                     </Border>
                                     <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
                                         <CheckBox Name="chkAdobe" Content="Adobe Acrobat Reader" Foreground="White"/>
@@ -130,23 +133,37 @@ $reader = (New-Object System.Xml.XmlNodeReader $xaml)
 $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
 # Mapear Controles
-$btnInstalar   = $window.FindName("BtnInstalar")
-$txtEstado     = $window.FindName("TxtEstado")
+$btnInstalar     = $window.FindName("BtnInstalar")
+$txtEstado       = $window.FindName("TxtEstado")
+$chkLanzarAlFinal= $window.FindName("chkLanzarAlFinal")
 
-$chkLogMeIn    = $window.FindName("chkLogMeIn")
-$chkSAP        = $window.FindName("chkSAP")
-$chkChrome     = $window.FindName("chkChrome")
-$chkDrive      = $window.FindName("chkDrive")
-$chkSonicWall  = $window.FindName("chkSonicWall")
-$chkAdobe      = $window.FindName("chkAdobe")
-$chkStopUpdates= $window.FindName("chkStopUpdates")
+$chkLogMeIn      = $window.FindName("chkLogMeIn")
+$chkSAP          = $window.FindName("chkSAP")
+$chkChrome       = $window.FindName("chkChrome")
+$chkDrive        = $window.FindName("chkDrive")
+$chkSonicWall    = $window.FindName("chkSonicWall")
+$chkAdobe        = $window.FindName("chkAdobe")
+$chkStopUpdates  = $window.FindName("chkStopUpdates")
 
-# Función auxiliar de instalación mediante WinGet
+# Función auxiliar de instalación mediante WinGet con opción de apertura
 function Install-App {
-    param ([string]$id, [string]$nombre)
+    param (
+        [string]$id, 
+        [string]$nombre, 
+        [string]$exeRuta = ""
+    )
     $txtEstado.Text = "Instalando $nombre..."
     [System.Windows.Forms.Application]::DoEvents()
+    
+    # Instalación silenciosa vía WinGet
     winget install --id $id --silent --accept-package-agreements --accept-source-agreements | Out-Null
+    
+    # Lanzar la aplicación si la casilla está activa y se proporcionó la ruta del ejecutable
+    if ($chkLanzarAlFinal.IsChecked -and $exeRuta -ne "") {
+        if (Test-Path $exeRuta) {
+            Start-Process -FilePath $exeRuta
+        }
+    }
 }
 
 # Lógica del botón de Instalación
@@ -154,21 +171,33 @@ $btnInstalar.Add_Click({
     $btnInstalar.IsEnabled = $false
 
     try {
-        if ($chkChrome.IsChecked)      { Install-App "Google.Chrome" "Google Chrome" }
-        if ($chkDrive.IsChecked)       { Install-App "Google.Drive" "Google Drive" }
-        if ($chkAdobe.IsChecked)       { Install-App "Adobe.Acrobat.Reader.64-bit" "Adobe Reader" }
-        if ($chkSonicWall.IsChecked)   { Install-App "SonicWall.NetExtender" "SonicWall VPN" }
-        if ($chkLogMeIn.IsChecked)     { Install-App "LogMeIn.LogMeInClient" "LogMeIn Client" }
-        if ($chkStopUpdates.IsChecked) { Install-App "GreatisSoftware.StopUpdates10" "StopUpdates10" }
+        if ($chkChrome.IsChecked) { 
+            Install-App "Google.Chrome" "Google Chrome" "C:\Program Files\Google\Chrome\Application\chrome.exe" 
+        }
+        if ($chkDrive.IsChecked) { 
+            Install-App "Google.Drive" "Google Drive" "C:\Program Files\Google\Drive File Stream\launch.exe" 
+        }
+        if ($chkAdobe.IsChecked) { 
+            Install-App "Adobe.Acrobat.Reader.64-bit" "Adobe Reader" "C:\Program Files\Adobe\Acrobat DC\Acrobat\Acrobat.exe" 
+        }
+        if ($chkSonicWall.IsChecked) { 
+            # Se usa el ID exacto de SonicWall Global VPN Client
+            Install-App "SonicWall.GlobalVPNClient" "SonicWall Global VPN Client" "C:\Program Files\SonicWall\Global VPN Client\SWGVC.exe" 
+        }
+        if ($chkLogMeIn.IsChecked) { 
+            Install-App "LogMeIn.LogMeInClient" "LogMeIn Client" "C:\Program Files (x86)\LogMeIn\x64\LogMeInSystray.exe" 
+        }
+        if ($chkStopUpdates.IsChecked) { 
+            Install-App "GreatisSoftware.StopUpdates10" "StopUpdates10" "C:\Program Files (x86)\StopUpdates10\StopUpdates10.exe" 
+        }
 
-        # Instalación personalizada para SAP Logon 64 (URL directa a instalador)
+        # Instalación de SAP Logon 64
         if ($chkSAP.IsChecked) {
             $txtEstado.Text = "Descargando SAP Logon 64..."
             [System.Windows.Forms.Application]::DoEvents()
             
             $tempPath = "$env:TEMP\SetupGUI.exe"
-            # Reemplaza esta URL por el enlace directo a tu instalador de SAP
-            $sapUrl = "https://tu-servidor.com/SetupGUI.exe" 
+            $sapUrl = "https://tu-servidor.com/SetupGUI.exe" # Reemplazar con URL de descarga
             
             Invoke-WebRequest -Uri $sapUrl -OutFile $tempPath
             $txtEstado.Text = "Instalando SAP Logon 64..."
@@ -176,10 +205,16 @@ $btnInstalar.Add_Click({
             
             Start-Process -FilePath $tempPath -ArgumentList "/silent" -Wait
             Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
+
+            # Abrir SAP Logon si la casilla está marcada
+            $sapExe = "C:\Program Files\SAP\FrontEnd\SAPgui\saplogon.exe"
+            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $sapExe)) {
+                Start-Process -FilePath $sapExe
+            }
         }
 
         $txtEstado.Text = "¡Instalaciones completadas!"
-        [System.Windows.MessageBox]::Show("Todas las aplicaciones seleccionadas fueron instaladas.", "Proceso Finalizado")
+        [System.Windows.MessageBox]::Show("Proceso finalizado con éxito.", "Notificación")
     }
     catch {
         $txtEstado.Text = "Error durante la instalación."
