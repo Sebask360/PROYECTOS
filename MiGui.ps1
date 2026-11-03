@@ -362,24 +362,24 @@ $btnInstalar.Add_Click({
             if ($chkLanzarAlFinal.IsChecked -and (Test-Path $exeStop)) { Start-Process -FilePath $exeStop }
         }
 
-        # ==============================================================================
-        # INSTALACIÓN LOGMEIN CONTROL PANEL (MSI DESDE GITHUB RELEASES)
-        # ==============================================================================
+        # LOGMEIN CONTROL PANEL (MSI DESDE GITHUB RELEASES)
         if ($chkLogMeIn.IsChecked) {
             $txtEstado.Text = "Comprobando LogMeIn Control Panel..."
             $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
 
-            # Definir carpeta independiente (usando el directorio temporal del sistema)
+            #Definir carpeta independiente usando el directorio temporal de Windows para evitar problemas de permisos
+
             $localFolder  = "$env:TEMP\PopsyInstallers"
-            $msiInstaller = "$localFolder\LogMeInAdministrativo.msi"
+            $msiInstaller = "$localFolder\LogMeIn.msi"
             $githubMsiUrl = "https://github.com/Sebask360/PROYECTOS/releases/download/LogMeIn/LogMeInAdministrativo.msi"
 
-            # Crear carpeta temporal si no existe
+            #Crear carpeta temporal si no existe
             if (-not (Test-Path $localFolder)) { 
                 New-Item -ItemType Directory -Path $localFolder -Force | Out-Null 
             }
 
-            # 1. Descargar el archivo .msi de LogMeIn de forma independiente
+            #1. Decargar el .msi  de logmein de forma independiente
+
             if (-not (Test-Path $msiInstaller)) {
                 $txtEstado.Text = "Descargando LogMeIn Control Panel..."
                 $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
@@ -394,7 +394,8 @@ $btnInstalar.Add_Click({
                 $ProgressPreference = $oldProgress
             }
 
-            # 2. Ejecución silenciosa del instalador MSI
+            #2. Ejecucuiion silenciosa del instalador
+
             if (Test-Path $msiInstaller) {
                 $txtEstado.Text = "Instalando LogMeIn Control Panel en segundo plano..."
                 $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
@@ -402,25 +403,13 @@ $btnInstalar.Add_Click({
                 Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msiInstaller`" /qn /norestart" -Wait
                 $txtEstado.Text = "LogMeIn Control Panel instalado."
             }
+            #3, Abrir la aplicacion si la casilla esta marcada y el ejecutable exist
 
-            # 3. Abrir la aplicación si la casilla está marcada
             $logMeInExe = "C:\Program Files (x86)\LogMeIn\x64\ramui.exe"
             if ($chkLanzarAlFinal.IsChecked -and (Test-Path $logMeInExe)) { 
                 Start-Process -FilePath $logMeInExe 
             }
-        }
-        
-        # Descargar e instalar LogMeIn Control Panel desde GitHub Releases
-            if (Test-Path $msiInstaller) {
-                $txtEstado.Text = "Instalando LogMeIn Control Panel en segundo plano..."
-                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
-                Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msiInstaller`" /qn /norestart" -Wait
-                $txtEstado.Text = "LogMeIn Control Panel instalado."
-            }
-
-            $logMeInExe = "C:\Program Files (x86)\LogMeIn\x64\ramui.exe"
-            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $logMeInExe)) { Start-Process -FilePath $logMeInExe }
-        }
+}
 
         # INSTALACIÓN SAP
         if ($chkSAP.IsChecked) {
