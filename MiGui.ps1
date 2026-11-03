@@ -3,11 +3,11 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="WinUtil - Réplica de Estilo" Height="500" Width="800"
+        Title="WinUtil - Suite de Instalación" Height="520" Width="800"
         WindowStartupLocation="CenterScreen" Background="#1F232A">
     
     <Window.Resources>
-        <!-- Estilo base para las pestañas superiores principales -->
+        <!-- Estilo Pestañas Superiores -->
         <Style TargetType="TabItem">
             <Setter Property="Template">
                 <Setter.Value>
@@ -35,21 +35,17 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
 
-        <!-- Estilo para botones de la barra lateral -->
+        <!-- Estilo Botones -->
         <Style TargetType="Button">
-            <Setter Property="Background" Value="#191C21"/>
-            <Setter Property="Foreground" Value="#C5C8C6"/>
-            <Setter Property="BorderBrush" Value="#2D323B"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Background" Value="#3577A8"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" 
-                                BorderBrush="{TemplateBinding BorderBrush}" 
-                                BorderThickness="{TemplateBinding BorderThickness}" 
-                                CornerRadius="3">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="3">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -57,74 +53,58 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#29303B"/>
-                    <Setter Property="Foreground" Value="#41C4E2"/>
+                    <Setter Property="Background" Value="#4B8EC4"/>
                 </Trigger>
             </Style.Triggers>
-        </Style>
-
-        <!-- Estilo para los elementos/tarjetas dentro del panel -->
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#D4D4D4"/>
-            <Setter Property="Margin" Value="0,4"/>
         </Style>
     </Window.Resources>
 
     <Grid Margin="10">
-        <!-- Pestañas Principales Superior -->
         <TabControl Background="Transparent" BorderThickness="0">
             
-            <!-- PESTAÑA: INSTALL -->
-            <TabItem Header="Install">
+            <TabItem Header="Instalaciones">
                 <Grid Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Panel Lateral Izquierdo: Actions & Package Manager -->
-                    <Border Grid.Column="0" Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="10" Margin="0,0,10,0">
+                    <!-- Panel Izquierdo: Acciones -->
+                    <Border Grid.Column="0" Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="12" Margin="0,0,10,0">
                         <StackPanel>
-                            <TextBlock Text="Actions" Foreground="#41C4E2" FontWeight="Bold" FontSize="14" Margin="0,0,0,8"/>
-                            <Button Content="Install/Upgrade Applications"/>
-                            <Button Content="Uninstall Applications"/>
-                            <Button Content="Upgrade all Applications"/>
-
-                            <TextBlock Text="Package Manager" Foreground="#41C4E2" FontWeight="Bold" FontSize="14" Margin="0,15,0,8"/>
-                            <RadioButton Content="Chocolatey" Foreground="#C5C8C6" Margin="0,2"/>
-                            <RadioButton Content="WinGet" Foreground="#C5C8C6" IsChecked="True" Margin="0,2"/>
+                            <TextBlock Text="Acciones" Foreground="#41C4E2" FontWeight="Bold" FontSize="14" Margin="0,0,0,10"/>
+                            <Button Name="BtnInstalar" Content="Instalar Seleccionados" Height="35" Margin="0,0,0,10"/>
+                            <TextBlock Text="Estado:" Foreground="#A0A5B1" FontSize="12" Margin="0,10,0,5"/>
+                            <TextBlock Name="TxtEstado" Text="Esperando selección..." Foreground="#41C4E2" FontSize="11" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Panel Central Derecha: Contenedores por Categorías -->
+                    <!-- Panel Derecho: Lista de Apps -->
                     <Border Grid.Column="1" Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <!-- Sección Browsers -->
-                                <TextBlock Text="- Browsers" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
-                                <WrapPanel Margin="0,0,0,15">
-                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="170" Padding="8" Margin="0,0,8,8">
-                                        <CheckBox Content="Brave" Foreground="White" FontWeight="SemiBold"/>
-                                    </Border>
-                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="170" Padding="8" Margin="0,0,8,8">
-                                        <CheckBox Content="Chrome" Foreground="White" FontWeight="SemiBold"/>
-                                    </Border>
-                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="170" Padding="8" Margin="0,0,8,8">
-                                        <CheckBox Content="Firefox" Foreground="White" FontWeight="SemiBold"/>
-                                    </Border>
-                                </WrapPanel>
-
-                                <!-- Sección Communications -->
-                                <TextBlock Text="- Communications" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,5,0,10"/>
+                                <TextBlock Text="- Software Seleccionado" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
                                 <WrapPanel>
-                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="170" Padding="8" Margin="0,0,8,8">
-                                        <CheckBox Content="Discord" Foreground="White" FontWeight="SemiBold"/>
+                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
+                                        <CheckBox Name="chkLogMeIn" Content="LogMeIn Client" Foreground="White"/>
                                     </Border>
-                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="170" Padding="8" Margin="0,0,8,8">
-                                        <CheckBox Content="Signal" Foreground="White" FontWeight="SemiBold"/>
+                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
+                                        <CheckBox Name="chkSAP" Content="SAP Logon 64" Foreground="White"/>
                                     </Border>
-                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="170" Padding="8" Margin="0,0,8,8">
-                                        <CheckBox Content="Teams" Foreground="White" FontWeight="SemiBold"/>
+                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
+                                        <CheckBox Name="chkChrome" Content="Google Chrome" Foreground="White"/>
+                                    </Border>
+                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
+                                        <CheckBox Name="chkDrive" Content="Google Drive" Foreground="White"/>
+                                    </Border>
+                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
+                                        <CheckBox Name="chkSonicWall" Content="SonicWall NetExtender" Foreground="White"/>
+                                    </Border>
+                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
+                                        <CheckBox Name="chkAdobe" Content="Adobe Acrobat Reader" Foreground="White"/>
+                                    </Border>
+                                    <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
+                                        <CheckBox Name="chkStopUpdates" Content="StopUpdates10" Foreground="White"/>
                                     </Border>
                                 </WrapPanel>
                             </StackPanel>
@@ -133,21 +113,81 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
                 </Grid>
             </TabItem>
 
-            <!-- PESTAÑAS SECUNDARIAS -->
-            <TabItem Header="Tweaks">
-                <TextBlock Text="Opciones de optimización" Foreground="White" Margin="20"/>
+            <TabItem Header="Configuraciones">
+                <TextBlock Text="Opciones de configuración" Foreground="White" Margin="20"/>
             </TabItem>
-            <TabItem Header="Config">
-                <TextBlock Text="Configuraciones adicionales" Foreground="White" Margin="20"/>
+            <TabItem Header="Notas">
+                <TextBlock Text="Bloc de Notas" Foreground="White" Margin="20"/>
             </TabItem>
-            <TabItem Header="Updates">
-                <TextBlock Text="Ajustes de Windows Update" Foreground="White" Margin="20"/>
-            </TabItem>
+
         </TabControl>
     </Grid>
 </Window>
 "@
 
+# Cargar XAML
 $reader = (New-Object System.Xml.XmlNodeReader $xaml)
 $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+# Mapear Controles
+$btnInstalar   = $window.FindName("BtnInstalar")
+$txtEstado     = $window.FindName("TxtEstado")
+
+$chkLogMeIn    = $window.FindName("chkLogMeIn")
+$chkSAP        = $window.FindName("chkSAP")
+$chkChrome     = $window.FindName("chkChrome")
+$chkDrive      = $window.FindName("chkDrive")
+$chkSonicWall  = $window.FindName("chkSonicWall")
+$chkAdobe      = $window.FindName("chkAdobe")
+$chkStopUpdates= $window.FindName("chkStopUpdates")
+
+# Función auxiliar de instalación mediante WinGet
+function Install-App {
+    param ([string]$id, [string]$nombre)
+    $txtEstado.Text = "Instalando $nombre..."
+    [System.Windows.Forms.Application]::DoEvents()
+    winget install --id $id --silent --accept-package-agreements --accept-source-agreements | Out-Null
+}
+
+# Lógica del botón de Instalación
+$btnInstalar.Add_Click({
+    $btnInstalar.IsEnabled = $false
+
+    try {
+        if ($chkChrome.IsChecked)      { Install-App "Google.Chrome" "Google Chrome" }
+        if ($chkDrive.IsChecked)       { Install-App "Google.Drive" "Google Drive" }
+        if ($chkAdobe.IsChecked)       { Install-App "Adobe.Acrobat.Reader.64-bit" "Adobe Reader" }
+        if ($chkSonicWall.IsChecked)   { Install-App "SonicWall.NetExtender" "SonicWall VPN" }
+        if ($chkLogMeIn.IsChecked)     { Install-App "LogMeIn.LogMeInClient" "LogMeIn Client" }
+        if ($chkStopUpdates.IsChecked) { Install-App "GreatisSoftware.StopUpdates10" "StopUpdates10" }
+
+        # Instalación personalizada para SAP Logon 64 (URL directa a instalador)
+        if ($chkSAP.IsChecked) {
+            $txtEstado.Text = "Descargando SAP Logon 64..."
+            [System.Windows.Forms.Application]::DoEvents()
+            
+            $tempPath = "$env:TEMP\SetupGUI.exe"
+            # Reemplaza esta URL por el enlace directo a tu instalador de SAP
+            $sapUrl = "https://tu-servidor.com/SetupGUI.exe" 
+            
+            Invoke-WebRequest -Uri $sapUrl -OutFile $tempPath
+            $txtEstado.Text = "Instalando SAP Logon 64..."
+            [System.Windows.Forms.Application]::DoEvents()
+            
+            Start-Process -FilePath $tempPath -ArgumentList "/silent" -Wait
+            Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
+        }
+
+        $txtEstado.Text = "¡Instalaciones completadas!"
+        [System.Windows.MessageBox]::Show("Todas las aplicaciones seleccionadas fueron instaladas.", "Proceso Finalizado")
+    }
+    catch {
+        $txtEstado.Text = "Error durante la instalación."
+        [System.Windows.MessageBox]::Show("Ocurrió un error: $_", "Error")
+    }
+    finally {
+        $btnInstalar.IsEnabled = $true
+    }
+})
+
 $window.ShowDialog() | Out-Null
