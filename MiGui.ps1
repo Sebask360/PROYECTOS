@@ -1,16 +1,8 @@
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms
 
 # ==============================================================================
-# 1. FUNCIONES AUXILIARES Y LÓGICA DE NEGOCIO
+# 1. FUNCIONES AUXILIARES
 # ==============================================================================
-
-# Función para forzar el refresco de eventos de la GUI WPF sin congelar la ventana
-function Update-UI {
-    [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke(
-        [System.Action]{}, 
-        [System.Windows.Threading.DispatcherPriority]::Background
-    )
-}
 
 # Función dinámica para inyectar el XML corporativo de SAP según selección
 function Set-SAPLandscapePopsy {
@@ -81,14 +73,32 @@ $xmlServices
 </Landscape>
 "@
 
-    # Guardar archivo con codificación UTF-8 sin BOM
     [System.IO.File]::WriteAllText($xmlPath, $landscapeContent, [System.Text.Encoding]::UTF8)
+}
 
-    # Depuración de la clave de registro de SAP Logon para evitar advertencias de servidor central
-    $regPath = "HKCU:\Software\SAP\SAPLogon\Options"
-    if (Test-Path $regPath) {
-        Remove-ItemProperty -Path $regPath -Name "SapGui64.LandscapeFileOnServer" -ErrorAction SilentlyContinue
+# Función para crear usuario local y asignarle grupo Administradores
+function New-PopsyUser {
+    param (
+        [string]$Username,
+        [string]$Password
+    )
+    
+    $securePass = ConvertTo-SecureString $Password -AsPlainText -Force
+
+    # Verificar si el usuario ya existe en Windows
+    $userExists = Get-LocalUser -Name $Username -ErrorAction SilentlyContinue
+
+    if (-not $userExists) {
+        New-LocalUser -Name $Username -Password $securePass -FullName "Usuario $Username" -PasswordNeverExpires $true | Out-Null
+    } else {
+        Set-LocalUser -Name $Username -Password $securePass -PasswordNeverExpires $true | Out-Null
     }
+
+    # Habilitar cuenta si estuviera deshabilitada
+    Enable-LocalUser -Name $Username -ErrorAction SilentlyContinue
+
+    # Asignar Privilegios de Administrador
+    Add-LocalGroupMember -Group "Administradores" -Member $Username -ErrorAction SilentlyContinue
 }
 
 # ==============================================================================
@@ -97,7 +107,7 @@ $xmlServices
 [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="WinUtil - Suite de Instalación sistemas Popsy" Height="540" Width="800"
+        Title="WinUtil - Suite de Instalación sistemas Popsy" Height="580" Width="820"
         WindowStartupLocation="CenterScreen" Background="#1F232A">
     
     <Window.Resources>
@@ -175,10 +185,10 @@ $xmlServices
                     <Border Grid.Column="1" Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <TextBlock Text="Software Seleccionado" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
+                                <TextBlock Text="- Software Seleccionado" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
                                 <WrapPanel>
                                     <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
-                                        <CheckBox Name="chkLogMeIn" Content="LogMeIn Client" Foreground="White"/>
+                                        <CheckBox Name="chkLogMeIn" Content="LogMeIn Control Panel (.msi)" Foreground="White"/>
                                     </Border>
                                     <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Width="230" Padding="10" Margin="0,0,8,8">
                                         <CheckBox Name="chkSAP" Content="SAP Logon 64 (Instalador)" Foreground="White"/>
@@ -205,26 +215,66 @@ $xmlServices
                 </Grid>
             </TabItem>
 
-            <!-- PESTAÑA 2: CONFIGURACIONES -->
+            <!-- PESTAÑA 2: CONFIGURACIONES (SAP + MÓDULO DE USUARIOS) -->
             <TabItem Header="Configuraciones">
-                <Grid Margin="0,10,0,0">
-                    <Border Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
-                        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top">
-                            <TextBlock Text="Configuración de Entornos SAP" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
-                            <TextBlock Text="Selecciona los ambientes que deseas añadir al perfil de SAP del usuario actual:" Foreground="#A0A5B1" TextWrapping="Wrap" Margin="0,0,0,15"/>
-                            
-                            <CheckBox Name="chkSapPrd" Content="POPSY PRD (Productivo)" Foreground="White" IsChecked="True" Margin="0,0,0,8"/>
-                            <CheckBox Name="chkSapQa" Content="POPSY QA (Calidad)" Foreground="White" Margin="0,0,0,8"/>
-                            <CheckBox Name="chkSapDev" Content="POPSY DESARROLLO" Foreground="White" Margin="0,0,0,20"/>
-                            
-                            <Button Name="BtnConfigurarSAP" Content="Aplicar Configuraciones SAP" Width="220" HorizontalAlignment="Left" Height="35"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                    <StackPanel>
+                        <!-- SECCIÓN 1: SAP -->
+                        <Border Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15" Margin="0,0,0,15">
+                            <StackPanel HorizontalAlignment="Left">
+                                <TextBlock Text="Configuración de Entornos SAP" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,5"/>
+                                <TextBlock Text="Selecciona los ambientes que deseas añadir al perfil de SAP del usuario actual:" Foreground="#A0A5B1" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                
+                                <WrapPanel Margin="0,0,0,10">
+                                    <CheckBox Name="chkSapPrd" Content="POPSY PRD (Productivo)" Foreground="White" IsChecked="True" Margin="0,0,15,0"/>
+                                    <CheckBox Name="chkSapQa" Content="POPSY QA (Calidad)" Foreground="White" Margin="0,0,15,0"/>
+                                    <CheckBox Name="chkSapDev" Content="POPSY DESARROLLO" Foreground="White"/>
+                                </WrapPanel>
+                                
+                                <Button Name="BtnConfigurarSAP" Content="Aplicar Configuraciones SAP" Width="220" HorizontalAlignment="Left" Height="30"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- SECCIÓN 2: CREACIÓN DE USUARIOS LOCALES -->
+                        <Border Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
+                            <StackPanel HorizontalAlignment="Left" Width="740">
+                                <TextBlock Text="Gestión de Usuarios Locales (Administradores)" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,5"/>
+                                <TextBlock Text="Selecciona los usuarios predeterminados o crea uno personalizado para el sistema:" Foreground="#A0A5B1" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                
+                                <!-- Opciones Predeterminadas -->
+                                <CheckBox Name="chkUserAdmin" Content="Usuario 'Administrador' (Clave: C4NT464L1&amp;)" Foreground="White" IsChecked="True" Margin="0,0,0,8"/>
+                                <CheckBox Name="chkUserLogMeIn" Content="Usuario 'LogMeInRemoteUser' (Clave: C4NT464L1&amp;)" Foreground="White" IsChecked="True" Margin="0,0,0,12"/>
+                                
+                                <!-- Usuario Personalizado -->
+                                <Border Background="#1F232A" BorderBrush="#2D323B" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,15">
+                                    <StackPanel>
+                                        <CheckBox Name="chkUserCustom" Content="Crear Usuario Personalizado (Administrador)" Foreground="#41C4E2" FontWeight="Bold" Margin="0,0,0,8"/>
+                                        <Grid Name="panelCustomUser" IsEnabled="False">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="200"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="200"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <TextBlock Grid.Column="0" Text="Usuario:" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBox Grid.Column="1" Name="txtCustomUser" Background="#16181D" Foreground="White" BorderBrush="#2D323B" Padding="4" Margin="0,0,15,0"/>
+                                            
+                                            <TextBlock Grid.Column="2" Text="Contraseña:" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <PasswordBox Grid.Column="3" Name="txtCustomPass" Background="#16181D" Foreground="White" BorderBrush="#2D323B" Padding="4"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Button Name="BtnCrearUsuarios" Content="Crear / Actualizar Usuarios" Width="220" HorizontalAlignment="Left" Height="30"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             
             <TabItem Header="Notas">
-                <TextBlock Text="Notas operativas de despliegue." Foreground="White" Margin="20"/>
+                <TextBlock Text="Bloc de Notas" Foreground="White" Margin="20"/>
             </TabItem>
 
         </TabControl>
@@ -249,32 +299,35 @@ $chkSonicWall    = $window.FindName("chkSonicWall")
 $chkAdobe        = $window.FindName("chkAdobe")
 $chkStopUpdates  = $window.FindName("chkStopUpdates")
 
-# Mapear Controles Pestaña Configuraciones
+# Mapear Controles Pestaña Configuraciones (SAP)
 $btnConfigurarSAP= $window.FindName("BtnConfigurarSAP")
 $chkSapPrd       = $window.FindName("chkSapPrd")
 $chkSapQa        = $window.FindName("chkSapQa")
 $chkSapDev       = $window.FindName("chkSapDev")
 
+# Mapear Controles Pestaña Configuraciones (Usuarios)
+$chkUserAdmin    = $window.FindName("chkUserAdmin")
+$chkUserLogMeIn = $window.FindName("chkUserLogMeIn")
+$chkUserCustom   = $window.FindName("chkUserCustom")
+$panelCustomUser = $window.FindName("panelCustomUser")
+$txtCustomUser   = $window.FindName("txtCustomUser")
+$txtCustomPass   = $window.FindName("txtCustomPass")
+$btnCrearUsuarios= $window.FindName("BtnCrearUsuarios")
+
+# Habilitar/Deshabilitar panel de usuario personalizado dinámicamente
+$chkUserCustom.Add_Checked({ $panelCustomUser.IsEnabled = $true })
+$chkUserCustom.Add_Unchecked({ $panelCustomUser.IsEnabled = $false })
+
 # Función auxiliar de instalación mediante WinGet
 function Install-App {
-    param (
-        [string]$id, 
-        [string]$nombre, 
-        [string]$exeRuta = "",
-        [string]$overrideArgs = ""
-    )
+    param ([string]$id, [string]$nombre, [string]$exeRuta = "")
     $txtEstado.Text = "Instalando $nombre..."
-    Update-UI
+    $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
     
-    $argsList = "install --id $id --silent --accept-package-agreements --accept-source-agreements"
-    if ($overrideArgs -ne "") {
-        $argsList += " --override `"$overrideArgs`""
-    }
-
-    Start-Process winget -ArgumentList $argsList -Wait -NoNewWindow
+    winget install --id $id --silent --accept-package-agreements --accept-source-agreements | Out-Null
     
-    if ($chkLanzarAlFinal.IsChecked -and $exeRuta -ne "" -and (Test-Path $exeRuta)) {
-        Start-Process -FilePath $exeRuta
+    if ($chkLanzarAlFinal.IsChecked -and $exeRuta -ne "") {
+        if (Test-Path $exeRuta) { Start-Process -FilePath $exeRuta }
     }
 }
 
@@ -291,50 +344,85 @@ $btnInstalar.Add_Click({
         if ($chkDrive.IsChecked)  { Install-App "Google.Drive" "Google Drive" "C:\Program Files\Google\Drive File Stream\launch.exe" }
         if ($chkAdobe.IsChecked)  { Install-App "Adobe.Acrobat.Reader.64-bit" "Adobe Reader" "C:\Program Files\Adobe\Acrobat DC\Acrobat\Acrobat.exe" }
         if ($chkSonicWall.IsChecked){ Install-App "SonicWall.GlobalVPNClient" "SonicWall Global VPN Client" "C:\Program Files\SonicWall\Global VPN Client\SWGVC.exe" }
-        if ($chkLogMeIn.IsChecked){ Install-App "LogMeIn.LogMeInClient" "LogMeIn Client" "C:\Program Files (x86)\LogMeIn\x64\LogMeInSystray.exe" }
 
+        # STOPUPDATES10
         if ($chkStopUpdates.IsChecked) { 
-            Install-App "Greatis.StopUpdates10" "StopUpdates10" "C:\Program Files (x86)\StopUpdates10\StopUpdates10.exe" "--force"
+            $txtEstado.Text = "Instalando StopUpdates10..."
+            $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+            winget install --id Greatis.StopUpdates10 --silent --force --accept-package-agreements --accept-source-agreements | Out-Null
+            $exeStop = "C:\Program Files (x86)\StopUpdates10\StopUpdates10.exe"
+            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $exeStop)) { Start-Process -FilePath $exeStop }
+        }
+
+        # LOGMEIN CONTROL PANEL (MSI DESDE GITHUB RELEASES)
+        if ($chkLogMeIn.IsChecked) {
+            $txtEstado.Text = "Comprobando LogMeIn Control Panel..."
+            $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+
+            $localFolder  = "C:\SAP"
+            $msiInstaller = "$localFolder\LogMeIn.msi"
+            $githubMsiUrl = "https://github.com/Sebask360/PROYECTOS/releases/download/v1.0.0/LogMeIn.msi"
+
+            if (-not (Test-Path $localFolder)) { New-Item -ItemType Directory -Path $localFolder -Force | Out-Null }
+
+            if (-not (Test-Path $msiInstaller)) {
+                $txtEstado.Text = "Descargando LogMeIn Control Panel..."
+                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+
+                $oldProgress = $ProgressPreference
+                $ProgressPreference = 'SilentlyContinue'
+                try {
+                    Invoke-WebRequest -Uri $githubMsiUrl -OutFile $msiInstaller -UseBasicParsing
+                } catch {
+                    [System.Windows.MessageBox]::Show("Error descargando LogMeIn: $_", "Error Descarga")
+                }
+                $ProgressPreference = $oldProgress
+            }
+
+            if (Test-Path $msiInstaller) {
+                $txtEstado.Text = "Instalando LogMeIn Control Panel en segundo plano..."
+                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+                Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msiInstaller`" /qn /norestart" -Wait
+                $txtEstado.Text = "LogMeIn Control Panel instalado."
+            }
+
+            $logMeInExe = "C:\Program Files (x86)\LogMeIn\x64\ramui.exe"
+            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $logMeInExe)) { Start-Process -FilePath $logMeInExe }
         }
 
         # INSTALACIÓN SAP
         if ($chkSAP.IsChecked) {
             $txtEstado.Text = "Comprobando instalador de SAP..."
-            Update-UI
+            $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
 
             $localFolder = "C:\SAP"
             $singleExe   = "$localFolder\SAP_PopsyPackage.exe"
             $githubUrl   = "https://github.com/Sebask360/PROYECTOS/releases/download/v1.0.0/SAP_PopsyPackage.exe"
 
-            if (-not (Test-Path $localFolder)) {
-                New-Item -ItemType Directory -Path $localFolder -Force | Out-Null
-            }
+            if (-not (Test-Path $localFolder)) { New-Item -ItemType Directory -Path $localFolder -Force | Out-Null }
+
             if (-not (Test-Path $singleExe)) {
                 $txtEstado.Text = "Descargando SAP Logon 64 desde GitHub..."
-                Update-UI
-    
+                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+
+                $oldProgress = $ProgressPreference
+                $ProgressPreference = 'SilentlyContinue'
                 try {
-                    $oldProgressPreference = $ProgressPreference
-                    $ProgressPreference = 'SilentlyContinue'
-
                     Invoke-WebRequest -Uri $githubUrl -OutFile $singleExe -UseBasicParsing
-
-                    $ProgressPreference = $oldProgressPreference
                 } catch {
-                    [System.Windows.MessageBox]::Show("Error al descargar el ejecutable de SAP: $_", "Error Descarga")
+                    [System.Windows.MessageBox]::Show("Error descargando SAP: $_", "Error Descarga")
                 }
+                $ProgressPreference = $oldProgress
             }
-            
+
             if (Test-Path $singleExe) {
                 $txtEstado.Text = "Instalando SAP Logon 64 en segundo plano..."
-                Update-UI
+                $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
                 Start-Process -FilePath $singleExe -ArgumentList "/Silent" -Wait
             }
 
             $sapExe = "C:\Program Files\SAP\FrontEnd\SAPgui\saplogon.exe"
-            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $sapExe)) {
-                Start-Process -FilePath $sapExe
-            }
+            if ($chkLanzarAlFinal.IsChecked -and (Test-Path $sapExe)) { Start-Process -FilePath $sapExe }
         }
 
         $txtEstado.Text = "¡Instalaciones completadas!"
@@ -353,15 +441,57 @@ $btnInstalar.Add_Click({
 $btnConfigurarSAP.Add_Click({
     try {
         if (-not ($chkSapPrd.IsChecked -or $chkSapQa.IsChecked -or $chkSapDev.IsChecked)) {
-            [System.Windows.MessageBox]::Show("Debes seleccionar al menos un ambiente para configurar.", "Aviso")
+            [System.Windows.MessageBox]::Show("Debes seleccionar al menos un ambiente de SAP para configurar.", "Aviso")
             return
         }
 
         Set-SAPLandscapePopsy -IncludePRD $chkSapPrd.IsChecked -IncludeQA $chkSapQa.IsChecked -IncludeDEV $chkSapDev.IsChecked
-        
-        [System.Windows.MessageBox]::Show("El archivo de configuración SAPUILandscape.xml se ha actualizado exitosamente con los ambientes seleccionados.", "Configuración Aplicada")
+        [System.Windows.MessageBox]::Show("El archivo SAPUILandscape.xml fue actualizado exitosamente.", "Éxito SAP")
     } catch {
         [System.Windows.MessageBox]::Show("Ocurrió un error al aplicar la configuración XML: $_", "Error XML")
+    }
+})
+
+# Lógica del botón de Creación de Usuarios Locales
+$btnCrearUsuarios.Add_Click({
+    try {
+        $creados = @()
+
+        # 1. Usuario Administrador Predeterminado
+        if ($chkUserAdmin.IsChecked) {
+            New-PopsyUser -Username "Administrador" -Password "C4NT464L1&"
+            $creados += "Administrador"
+        }
+
+        # 2. Usuario LogMeInRemoteUser Predeterminado
+        if ($chkUserLogMeIn.IsChecked) {
+            New-PopsyUser -Username "LogMeInRemoteUser" -Password "C4NT464L1&"
+            $creados += "LogMeInRemoteUser"
+        }
+
+        # 3. Usuario Personalizado
+        if ($chkUserCustom.IsChecked) {
+            $cUser = $txtCustomUser.Text.Trim()
+            $cPass = $txtCustomPass.Password.Trim()
+
+            if ([string]::IsNullOrWhiteSpace($cUser) -or [string]::IsNullOrWhiteSpace($cPass)) {
+                [System.Windows.MessageBox]::Show("Debes ingresar un nombre de usuario y contraseña válidos para la opción personalizada.", "Campos vacíos")
+                return
+            }
+
+            New-PopsyUser -Username $cUser -Password $cPass
+            $creados += "$cUser (Personalizado)"
+        }
+
+        if ($creados.Count -eq 0) {
+            [System.Windows.MessageBox]::Show("No has marcado ninguna casilla de usuario para crear.", "Aviso")
+            return
+        }
+
+        $listaMsg = $creados -join "`n - "
+        [System.Windows.MessageBox]::Show("Los siguientes usuarios se configuraron como Administradores del equipo:`n`n - $listaMsg", "Usuarios Creados Exitosamente")
+    } catch {
+        [System.Windows.MessageBox]::Show("Ocurrió un error al crear los usuarios (asegúrate de ejecutar PowerShell como Administrador): $_", "Error de Usuario")
     }
 })
 
