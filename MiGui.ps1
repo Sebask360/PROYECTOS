@@ -295,17 +295,25 @@ $btnInstalar.Add_Click({
             if (-not (Test-Path $localFolder)) {
                 New-Item -ItemType Directory -Path $localFolder -Force | Out-Null
             }
-
             if (-not (Test-Path $singleExe)) {
                 $txtEstado.Text = "Descargando SAP Logon 64 desde GitHub..."
                 $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
+    
                 try {
+                    # 1. Ocultar la barra de progreso de PowerShell para acelerar la descarga
+                    $oldProgressPreference = $ProgressPreference
+                    $ProgressPreference = 'SilentlyContinue'
+
+                    # 2. Descargar el ejecutable
                     Invoke-WebRequest -Uri $githubUrl -OutFile $singleExe -UseBasicParsing
+
+                    # 3. Restaurar la preferencia de progreso
+                    $ProgressPreference = $oldProgressPreference
                 } catch {
                     [System.Windows.MessageBox]::Show("Error al descargar el ejecutable de SAP.", "Error Descarga")
                 }
             }
-
+            
             if (Test-Path $singleExe) {
                 $txtEstado.Text = "Instalando SAP Logon 64 en segundo plano..."
                 $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
