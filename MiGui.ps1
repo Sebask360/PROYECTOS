@@ -4,8 +4,14 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, Sys
 # 1. FUNCIONES AUXILIARES
 # ==============================================================================
 
-# Función para inyectar el XML corporativo de SAP directamente
+# Función dinámica para inyectar el XML corporativo de SAP según selección
 function Set-SAPLandscapePopsy {
+    param (
+        [bool]$IncludePRD,
+        [bool]$IncludeQA,
+        [bool]$IncludeDEV
+    )
+
     $landscapeDir = "$env:APPDATA\SAP\Common"
     $xmlPath      = "$landscapeDir\SAPUILandscape.xml"
 
@@ -14,25 +20,58 @@ function Set-SAPLandscapePopsy {
         New-Item -ItemType Directory -Path $landscapeDir -Force | Out-Null
     }
 
-    # Generar la estructura exacta corporativa de POPSY
+    # Inicializar bloques de construcción del XML
+    $xmlItems    = ""
+    $xmlServices = ""
+    $xmlRouters  = ""
+
+    $needRouter1 = $false
+    $needRouter2 = $false
+
+    # Construir Nodos dinámicamente
+    if ($IncludePRD) {
+        $xmlItems    += "      <Item uuid=`"8a362934-12df-404c-bbcb-3bd12f711e42`" serviceid=`"a7ae92ec-e4bd-4e44-acf1-7d778e091c39`"/>`n"
+        $xmlServices += "    <Service type=`"SAPGUI`" uuid=`"a7ae92ec-e4bd-4e44-acf1-7d778e091c39`" name=`"POPSY PRD`" systemid=`"P4P`" mode=`"1`" server=`"10.0.0.5:3200`" routerid=`"0b893123-f1ba-4cef-902d-6b3537829aef`" sncop=`"-1`" dcpg=`"2`"/>`n"
+        $needRouter1 = $true
+    }
+    if ($IncludeQA) {
+        $xmlItems    += "      <Item uuid=`"8e3e4589-37fb-4578-af44-f166e36fb58a`" serviceid=`"91d83f3d-df2b-4717-a025-a1ad35a9b668`"/>`n"
+        $xmlServices += "    <Service type=`"SAPGUI`" uuid=`"91d83f3d-df2b-4717-a025-a1ad35a9b668`" name=`"POPSY QA`" systemid=`"P4Q`" mode=`"1`" server=`"10.0.0.3:3202`" routerid=`"8aeed703-b3da-460c-83ba-fb5cd1ed35e3`" sncop=`"-1`" dcpg=`"2`"/>`n"
+        $needRouter2 = $true
+    }
+    if ($IncludeDEV) {
+        $xmlItems    += "      <Item uuid=`"856ffcc8-413b-4466-82c6-e42186bbc00a`" serviceid=`"bb08a6cd-1897-46f4-9b05-664c073366a5`"/>`n"
+        $xmlServices += "    <Service type=`"SAPGUI`" uuid=`"bb08a6cd-1897-46f4-9b05-664c073366a5`" name=`"POPSY DESARROLLO`" systemid=`"P4D`" mode=`"1`" server=`"10.0.0.3:3200`" routerid=`"0b893123-f1ba-4cef-902d-6b3537829aef`" sncop=`"-1`" dcpg=`"2`"/>`n"
+        $needRouter1 = $true
+    }
+
+    # Añadir routers solo si los ambientes seleccionados los requieren
+    if ($needRouter1) { 
+        $xmlRouters += "    <Router uuid=`"0b893123-f1ba-4cef-902d-6b3537829aef`" name=`"/H/200.91.193.73`" description=`"/H/200.91.193.73`" router=`"/H/200.91.193.73`"/>`n" 
+    }
+    if ($needRouter2) { 
+        $xmlRouters += "    <Router uuid=`"8aeed703-b3da-460c-83ba-fb5cd1ed35e3`" name=`"/H/200.91.193.73|`" description=`"/H/200.91.193.73|`" router=`"/H/200.91.193.73|`"/>`n" 
+    }
+
+    # Limpiar el último salto de línea
+    $xmlItems    = $xmlItems.TrimEnd("`n")
+    $xmlRouters  = $xmlRouters.TrimEnd("`n")
+    $xmlServices = $xmlServices.TrimEnd("`n")
+
+    # Ensamblar el XML Final
     $landscapeContent = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <Landscape updated="$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))" version="1" generator="SAP GUI for Windows v8000.1.15.155">
   <Workspaces>
     <Workspace uuid="9a7bc45a-12fe-4bf6-bb32-29e67c6479e3" name="Local">
-      <Item uuid="8a362934-12df-404c-bbcb-3bd12f711e42" serviceid="a7ae92ec-e4bd-4e44-acf1-7d778e091c39"/>
-      <Item uuid="8e3e4589-37fb-4578-af44-f166e36fb58a" serviceid="91d83f3d-df2b-4717-a025-a1ad35a9b668"/>
-      <Item uuid="856ffcc8-413b-4466-82c6-e42186bbc00a" serviceid="bb08a6cd-1897-46f4-9b05-664c073366a5"/>
+$xmlItems
     </Workspace>
   </Workspaces>
   <Routers>
-    <Router uuid="0b893123-f1ba-4cef-902d-6b3537829aef" name="/H/200.91.193.73" description="/H/200.91.193.73" router="/H/200.91.193.73"/>
-    <Router uuid="8aeed703-b3da-460c-83ba-fb5cd1ed35e3" name="/H/200.91.193.73|" description="/H/200.91.193.73|" router="/H/200.91.193.73|"/>
+$xmlRouters
   </Routers>
   <Services>
-    <Service type="SAPGUI" uuid="a7ae92ec-e4bd-4e44-acf1-7d778e091c39" name="POPSY PRD" systemid="P4P" mode="1" server="10.0.0.5:3200" routerid="0b893123-f1ba-4cef-902d-6b3537829aef" sncop="-1" dcpg="2"/>
-    <Service type="SAPGUI" uuid="91d83f3d-df2b-4717-a025-a1ad35a9b668" name="POPSY QA" systemid="P4Q" mode="1" server="10.0.0.3:3202" routerid="8aeed703-b3da-460c-83ba-fb5cd1ed35e3" sncop="-1" dcpg="2"/>
-    <Service type="SAPGUI" uuid="bb08a6cd-1897-46f4-9b05-664c073366a5" name="POPSY DESARROLLO" systemid="P4D" mode="1" server="10.0.0.3:3200" routerid="0b893123-f1ba-4cef-902d-6b3537829aef" sncop="-1" dcpg="2"/>
+$xmlServices
   </Services>
   <Includes>
     <Include url="file:///$env:APPDATA/SAP/Common/SAPUILandscapeGlobal.xml" index="0" description="SAP Reserved"/>
@@ -40,7 +79,7 @@ function Set-SAPLandscapePopsy {
 </Landscape>
 "@
 
-    # Guardar archivo con codificación UTF-8
+    # Guardar archivo con codificación UTF-8 sin BOM
     [System.IO.File]::WriteAllText($xmlPath, $landscapeContent, [System.Text.Encoding]::UTF8)
 }
 
@@ -54,7 +93,6 @@ function Set-SAPLandscapePopsy {
         WindowStartupLocation="CenterScreen" Background="#1F232A">
     
     <Window.Resources>
-        <!-- Estilo Pestañas Superiores -->
         <Style TargetType="TabItem">
             <Setter Property="Template">
                 <Setter.Value>
@@ -82,7 +120,6 @@ function Set-SAPLandscapePopsy {
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
 
-        <!-- Estilo Botones -->
         <Style TargetType="Button">
             <Setter Property="Background" Value="#3577A8"/>
             <Setter Property="Foreground" Value="White"/>
@@ -160,13 +197,18 @@ function Set-SAPLandscapePopsy {
                 </Grid>
             </TabItem>
 
-            <!-- PESTAÑA 2: CONFIGURACIONES (Actualizada para SAP) -->
+            <!-- PESTAÑA 2: CONFIGURACIONES (Selección de Ambientes) -->
             <TabItem Header="Configuraciones">
                 <Grid Margin="0,10,0,0">
                     <Border Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15">
                         <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top">
                             <TextBlock Text="Configuración de Entornos SAP" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,10"/>
-                            <TextBlock Text="Añade automáticamente los ambientes PRD, QA y DESARROLLO al archivo SAPUILandscape.xml del usuario actual sin necesidad de descargas externas." Foreground="#A0A5B1" TextWrapping="Wrap" Margin="0,0,0,15"/>
+                            <TextBlock Text="Selecciona los ambientes que deseas añadir al perfil de SAP del usuario actual:" Foreground="#A0A5B1" TextWrapping="Wrap" Margin="0,0,0,15"/>
+                            
+                            <CheckBox Name="chkSapPrd" Content="POPSY PRD (Productivo)" Foreground="White" IsChecked="True" Margin="0,0,0,8"/>
+                            <CheckBox Name="chkSapQa" Content="POPSY QA (Calidad)" Foreground="White" Margin="0,0,0,8"/>
+                            <CheckBox Name="chkSapDev" Content="POPSY DESARROLLO" Foreground="White" Margin="0,0,0,20"/>
+                            
                             <Button Name="BtnConfigurarSAP" Content="Aplicar Configuraciones SAP" Width="220" HorizontalAlignment="Left" Height="35"/>
                         </StackPanel>
                     </Border>
@@ -186,9 +228,8 @@ function Set-SAPLandscapePopsy {
 $reader = (New-Object System.Xml.XmlNodeReader $xaml)
 $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
-# Mapear Controles
+# Mapear Controles Pestaña Instalaciones
 $btnInstalar     = $window.FindName("BtnInstalar")
-$btnConfigurarSAP= $window.FindName("BtnConfigurarSAP")
 $txtEstado       = $window.FindName("TxtEstado")
 $chkLanzarAlFinal= $window.FindName("chkLanzarAlFinal")
 
@@ -199,6 +240,12 @@ $chkDrive        = $window.FindName("chkDrive")
 $chkSonicWall    = $window.FindName("chkSonicWall")
 $chkAdobe        = $window.FindName("chkAdobe")
 $chkStopUpdates  = $window.FindName("chkStopUpdates")
+
+# Mapear Controles Pestaña Configuraciones
+$btnConfigurarSAP= $window.FindName("BtnConfigurarSAP")
+$chkSapPrd       = $window.FindName("chkSapPrd")
+$chkSapQa        = $window.FindName("chkSapQa")
+$chkSapDev       = $window.FindName("chkSapDev")
 
 # Función auxiliar de instalación mediante WinGet con opción de apertura
 function Install-App {
@@ -228,7 +275,6 @@ $btnInstalar.Add_Click({
         if ($chkSonicWall.IsChecked){ Install-App "SonicWall.GlobalVPNClient" "SonicWall Global VPN Client" "C:\Program Files\SonicWall\Global VPN Client\SWGVC.exe" }
         if ($chkLogMeIn.IsChecked){ Install-App "LogMeIn.LogMeInClient" "LogMeIn Client" "C:\Program Files (x86)\LogMeIn\x64\LogMeInSystray.exe" }
 
-        # StopUpdates10
         if ($chkStopUpdates.IsChecked) { 
             $txtEstado.Text = "Instalando StopUpdates10..."
             $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
@@ -237,7 +283,7 @@ $btnInstalar.Add_Click({
             if ($chkLanzarAlFinal.IsChecked -and (Test-Path $exeStop)) { Start-Process -FilePath $exeStop }
         }
 
-        # INSTALACIÓN SAP DESDE GITHUB RELEASES (Solo Instalación)
+        # INSTALACIÓN SAP
         if ($chkSAP.IsChecked) {
             $txtEstado.Text = "Comprobando instalador de SAP..."
             $window.Dispatcher.Invoke([System.Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
@@ -266,7 +312,6 @@ $btnInstalar.Add_Click({
                 Start-Process -FilePath $singleExe -ArgumentList "/Silent" -Wait
             }
 
-            # Abrir SAP Logon al finalizar si la casilla está marcada
             $sapExe = "C:\Program Files\SAP\FrontEnd\SAPgui\saplogon.exe"
             if ($chkLanzarAlFinal.IsChecked -and (Test-Path $sapExe)) {
                 Start-Process -FilePath $sapExe
@@ -285,11 +330,19 @@ $btnInstalar.Add_Click({
     }
 })
 
-# Lógica del botón de Configuración SAP (Pestaña Configuraciones)
+# Lógica del botón de Configuración SAP Dinámica
 $btnConfigurarSAP.Add_Click({
     try {
-        Set-SAPLandscapePopsy
-        [System.Windows.MessageBox]::Show("Ambientes POPSY PRD, POPSY QA y POPSY DESARROLLO añadidos exitosamente al archivo de configuraciones del usuario.", "Configuración Aplicada")
+        # Validar que al menos uno esté seleccionado
+        if (-not ($chkSapPrd.IsChecked -or $chkSapQa.IsChecked -or $chkSapDev.IsChecked)) {
+            [System.Windows.MessageBox]::Show("Debes seleccionar al menos un ambiente para configurar.", "Aviso")
+            return
+        }
+
+        # Ejecutar función pasando los valores de los CheckBox
+        Set-SAPLandscapePopsy -IncludePRD $chkSapPrd.IsChecked -IncludeQA $chkSapQa.IsChecked -IncludeDEV $chkSapDev.IsChecked
+        
+        [System.Windows.MessageBox]::Show("El archivo de configuración SAPUILandscape.xml se ha actualizado exitosamente con los ambientes seleccionados.", "Configuración Aplicada")
     } catch {
         [System.Windows.MessageBox]::Show("Ocurrió un error al aplicar la configuración XML: $_", "Error XML")
     }
