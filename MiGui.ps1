@@ -77,6 +77,7 @@ $xmlServices
 }
 
 # Función para crear usuario local y asignarle grupo Administradores
+# Función para crear usuario local y asignarle grupo Administradores (Corregida)
 function New-PopsyUser {
     param (
         [string]$Username,
@@ -89,9 +90,11 @@ function New-PopsyUser {
     $userExists = Get-LocalUser -Name $Username -ErrorAction SilentlyContinue
 
     if (-not $userExists) {
-        New-LocalUser -Name $Username -Password $securePass -FullName "Usuario $Username" -PasswordNeverExpires $true | Out-Null
+        # New-LocalUser sí acepta $true como booleano explícito
+        New-LocalUser -Name $Username -Password $securePass -FullName "Usuario $Username" -PasswordNeverExpires:$true | Out-Null
     } else {
-        Set-LocalUser -Name $Username -Password $securePass -PasswordNeverExpires $true | Out-Null
+        # Set-LocalUser requiere la sintaxis con ':' para parámetros Switch booleans
+        Set-LocalUser -Name $Username -Password $securePass -PasswordNeverExpires:$true | Out-Null
     }
 
     # Habilitar cuenta si estuviera deshabilitada
