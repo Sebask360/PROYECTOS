@@ -1,10 +1,26 @@
+# ==============================================================================
+# VERIFICACIÓN DE PRIVILEGIOS DE ADMINISTRADOR (UAC)
+# ==============================================================================
+$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
+if (-not $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    [System.Windows.Forms.MessageBox]::Show(
+        "Este script requiere permisos de Administrador para instalar software y gestionar usuarios localmente. Por favor, ejecútalo como Administrador.",
+        "Acceso Denegado",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Warning
+    ) | Out-Null
+    Exit
+}
+
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms
 
 # ==============================================================================
 # 0. CONFIGURACIONES GLOBALES Y RED
 # ==============================================================================
-# Forzar TLS 1.2 y 1.3 para evitar errores de relación de confianza SSL al descargar
+# Forzar TLS 1.2 / 1.3 e ignorar restricciones SSL para red local
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+[Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
 
 # ==============================================================================
 # 1. FUNCIONES AUXILIARES Y DE NEGOCIO
@@ -65,7 +81,14 @@ $xmlItems
   <Includes><Include url="file:///$env:APPDATA/SAP/Common/SAPUILandscapeGlobal.xml" index="0" description="SAP Reserved"/></Includes>
 </Landscape>
 "@
+    # Guardar archivo XML
     [System.IO.File]::WriteAllText($xmlPath, $landscapeContent, [System.Text.Encoding]::UTF8)
+
+    # Depuración de la clave de registro de SAP Logon para evitar advertencias de servidor central
+    $regPath = "HKCU:\Software\SAP\SAPLogon\Options"
+    if (Test-Path $regPath) {
+        Remove-ItemProperty -Path $regPath -Name "SapGui64.LandscapeFileOnServer" -ErrorAction SilentlyContinue
+    }
 }
 
 # Función para crear/actualizar usuario local
@@ -152,7 +175,6 @@ function New-PopsyUser {
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <TextBlock Text="- Software Corporativo" Foreground="#41C4E2" FontWeight="Bold" FontSize="15" Margin="0,0,0,5"/>
-                                <!-- NUEVO BOTÓN: Seleccionar Todo -->
                                 <CheckBox Name="chkSeleccionarTodo" Content="Seleccionar / Deseleccionar Todo" Foreground="#41C4E2" FontWeight="Bold" Margin="0,0,0,12"/>
                                 
                                 <WrapPanel>
@@ -235,7 +257,7 @@ function New-PopsyUser {
             </TabItem>
         </TabControl>
 
-        <!-- FOOTER GLOBAL DE EJECUCIÓN (Siempre visible) -->
+        <!-- FOOTER GLOBAL DE EJECUCIÓN -->
         <Border Grid.Row="1" Background="#16181D" CornerRadius="5" BorderBrush="#2D323B" BorderThickness="1" Padding="15" Margin="0,10,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -246,7 +268,6 @@ function New-PopsyUser {
                     <TextBlock Text="Estado del Sistema:" Foreground="#A0A5B1" FontSize="12" Margin="0,0,0,2"/>
                     <TextBlock Name="TxtEstado" Text="Esperando ejecución..." Foreground="#41C4E2" FontSize="13" TextWrapping="Wrap" FontWeight="Bold"/>
                 </StackPanel>
-                <!-- NUEVO BOTÓN: Ejecutador Global -->
                 <Button Name="BtnEjecutarGlobal" Grid.Column="1" Content="▶ EJECUTAR SELECCIÓN GLOBAL" Background="#107C41" Width="260" Height="40" FontSize="14" Cursor="Hand"/>
             </Grid>
         </Border>
@@ -258,10 +279,10 @@ $reader = (New-Object System.Xml.XmlNodeReader $xaml)
 $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
 # Mapeo de Variables XAML
-$txtEstado        = $window.FindName("TxtEstado")
-$btnEjecutarGlobal= $window.FindName("BtnEjecutarGlobal")
+$txtEstado         = $window.FindName("TxtEstado")
+$btnEjecutarGlobal = $window.FindName("BtnEjecutarGlobal")
 $chkSeleccionarTodo= $window.FindName("chkSeleccionarTodo")
-$chkLanzarAlFinal = $window.FindName("chkLanzarAlFinal")
+$chkLanzarAlFinal  = $window.FindName("chkLanzarAlFinal")
 
 # Controles Instalaciones
 $chkLogMeIn     = $window.FindName("chkLogMeIn")
@@ -314,7 +335,6 @@ function Install-App {
 # ==============================================================================
 
 function Invoke-Instalaciones {
-    # Validar si hay algo marcado en la matriz de instalación
     $haySeleccion = $false
     foreach ($chk in $installCheckboxes) { if ($chk.IsChecked) { $haySeleccion = $true; break } }
     if (-not $haySeleccion) { return }
@@ -332,17 +352,18 @@ function Invoke-Instalaciones {
         if ($chkLanzarAlFinal.IsChecked -and (Test-Path $exeStop)) { Start-Process -FilePath $exeStop }
     }
 
+    # DESCARGA E INSTALACIÓN DESDE REPOSITORIO PROXMOX (PUERTO 8080)
     if ($chkLogMeIn.IsChecked) {
-        $txtEstado.Text = "Descargando e Instalando LogMeIn Control Panel..."
+        $txtEstado.Text = "Descargando e Instalando LogMeIn Control Panel desde servidor local..."
         Update-UI
         $localFolder  = "$env:TEMP\PopsyInstallers"
         $msiInstaller = "$localFolder\LogMeIn.msi"
-        $githubMsiUrl = "https://github.com/Sebask360/PROYECTOS/releases/download/LogMeIn/LogMeInAdministrativo.msi"
+        $proxmoxMsiUrl = "http://192.168.2.145:8080/popsy/LogMeInAdministrativo.msi"
         
         if (-not (Test-Path $localFolder)) { New-Item -ItemType Directory -Path $localFolder -Force | Out-Null }
         if (-not (Test-Path $msiInstaller)) {
             $oldProgress = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri $githubMsiUrl -OutFile $msiInstaller -UseBasicParsing -ErrorAction SilentlyContinue
+            Invoke-WebRequest -Uri $proxmoxMsiUrl -OutFile $msiInstaller -UseBasicParsing -ErrorAction SilentlyContinue
             $ProgressPreference = $oldProgress
         }
         if (Test-Path $msiInstaller) {
@@ -353,16 +374,16 @@ function Invoke-Instalaciones {
     }
 
     if ($chkSAP.IsChecked) {
-        $txtEstado.Text = "Descargando e Instalando SAP Logon 64..."
+        $txtEstado.Text = "Descargando e Instalando SAP Logon 64 desde servidor local..."
         Update-UI
         $localFolder = "C:\SAP"
         $singleExe   = "$localFolder\SAP_PopsyPackage.exe"
-        $githubUrl   = "https://github.com/Sebask360/PROYECTOS/releases/download/v1.0.0/SAP_PopsyPackage.exe"
+        $proxmoxUrl  = "http://192.168.2.145:8080/popsy/SAP_PopsyPackage.exe"
 
         if (-not (Test-Path $localFolder)) { New-Item -ItemType Directory -Path $localFolder -Force | Out-Null }
         if (-not (Test-Path $singleExe)) {
             $oldProgress = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri $githubUrl -OutFile $singleExe -UseBasicParsing -ErrorAction SilentlyContinue
+            Invoke-WebRequest -Uri $proxmoxUrl -OutFile $singleExe -UseBasicParsing -ErrorAction SilentlyContinue
             $ProgressPreference = $oldProgress
         }
         if (Test-Path $singleExe) { Start-Process -FilePath $singleExe -ArgumentList "/Silent" -Wait }
@@ -409,7 +430,6 @@ $btnEjecutarGlobal.Add_Click({
     $chkSeleccionarTodo.IsEnabled = $false
 
     try {
-        # Evaluar y ejecutar cada módulo de manera secuencial
         Invoke-Instalaciones
         Invoke-ConfiguracionesSAP
         Invoke-CreacionUsuarios
